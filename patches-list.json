@@ -4,7 +4,7 @@
   "patches": [
     {
       "name": "Remove Firebase & Telemetry",
-      "description": "Completely disables Firebase initialization, background receivers, registrars, and analytics telemetry.",
+      "description": "Completely disables Firebase analytics, Crashlytics, and measurement telemetry while ensuring device registration and VPN operate independently.",
       "default": true,
       "dependencies": [
         "ResourcePatch"
