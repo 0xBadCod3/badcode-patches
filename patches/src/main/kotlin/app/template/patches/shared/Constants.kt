@@ -18,13 +18,16 @@ object Constants {
     )
 
     val CLOUDFLARE_WARP_COMPATIBILITY = Compatibility(
-        name = "1.1.1.1",
+        name = "1.1.1.1: Faster & Safer Internet",
         packageName = "com.cloudflare.onedotonedotonedotone",
         appIconColor = 0xF48120,
-        apkFileType = ApkFileType.APKM,
+        apkFileType = ApkFileType.APK,
         targets = listOf(
             AppTarget(version = "6.38.9", versionCode = 5641),
+            AppTarget(version = "6.38.8", versionCode = 5431),
             AppTarget(version = "any")
         )
     )
+
+    val WARP_COMPATIBILITY = CLOUDFLARE_WARP_COMPATIBILITY
 }
