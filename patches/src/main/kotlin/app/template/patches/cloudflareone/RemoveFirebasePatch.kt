@@ -8,11 +8,8 @@ import app.template.patches.shared.Constants.CLOUDFLARE_WARP_COMPATIBILITY
 import org.w3c.dom.Element
 
 /**
- * Manifest patch: Disables all Firebase, Google Measurement, and DataTransport
- * ContentProviders, BroadcastReceivers, and Services in AndroidManifest.xml.
- *
- * This stops Android OS from initializing Firebase via FirebaseInitProvider
- * and removes all background processes/alarms (e.g. FirebaseInstanceIdReceiver).
+ * Manifest patch: Disables Google Analytics telemetry, Measurement services,
+ * and background data transport jobs in AndroidManifest.xml.
  */
 val removeFirebaseManifestPatch = resourcePatch(
     default = true
@@ -23,10 +20,9 @@ val removeFirebaseManifestPatch = resourcePatch(
         document("AndroidManifest.xml").use { doc ->
             val tags = listOf("provider", "receiver", "service")
             val targetKeywords = listOf(
-                "com.google.firebase",
                 "com.google.android.gms.measurement",
                 "com.google.android.datatransport",
-                "com.cloudflare.app.domain.fcm",
+                "com.google.firebase.sessions.SessionLifecycleService",
             )
 
             tags.forEach { tagName ->
@@ -44,20 +40,14 @@ val removeFirebaseManifestPatch = resourcePatch(
 }
 
 /**
- * Bytecode patch: Completely and future-proofly strips Firebase execution and telemetry.
- *
- * 1. Dynamically scans and short-circuits ANY class implementing ComponentRegistrar
- *    (Crashlytics, Analytics, Perf, Sessions, Messaging, RemoteConfig, etc.).
- * 2. Neutralizes FirebaseCrashlytics (provides a dummy instance on getInstance() and
- *    no-ops all logging/reporting methods so no NPE or crash occurs if called).
- * 3. Neutralizes FirebaseAnalytics (no-ops logEvent and all telemetry setters).
- * 4. Neutralizes FirebaseApp.initializeApp().
- * 5. No-ops Cloudflare's internal AnalyticsService event builders and dispatchers.
+ * Bytecode patch: Completely disables Firebase telemetry, analytics, and Crashlytics,
+ * while safely stubbing DeviceRegistrationManager so device key generation and VPN
+ * registration succeed without requiring Firebase or Google Play Services.
  */
 @Suppress("unused")
 val removeFirebasePatch = bytecodePatch(
     name = "Remove Firebase & Telemetry",
-    description = "Completely disables Firebase initialization, background receivers, registrars, and analytics telemetry.",
+    description = "Completely disables Firebase analytics, Crashlytics, and measurement telemetry while ensuring device registration and VPN operate independently.",
     default = true,
 ) {
     compatibleWith(CLOUDFLARE_ONE_AGENT_COMPATIBILITY, CLOUDFLARE_WARP_COMPATIBILITY)
@@ -70,19 +60,64 @@ val removeFirebasePatch = bytecodePatch(
             return-object v0
         """.trimIndent()
 
+        val singleEmptyStringSmali = """
+            const-string v0, ""
+            invoke-static {v0}, Lio/reactivex/Single;->f(Ljava/lang/Object;)Lio/reactivex/internal/operators/single/SingleJust;
+            move-result-object v0
+            return-object v0
+        """.trimIndent()
+
+        val taskEmptyStringSmali = """
+            const-string v0, ""
+            invoke-static {v0}, Lcom/google/android/gms/tasks/Tasks;->e(Ljava/lang/Object;)Lcom/google/android/gms/tasks/Task;
+            move-result-object v0
+            return-object v0
+        """.trimIndent()
+
         // 1. Dynamic ComponentRegistrar neutralization:
         // Scans all classes in the APK that implement ComponentRegistrar and forces
-        // getComponents() to return an empty list. Future-proof against any added Firebase modules.
+        // getComponents() to return an empty list for telemetry components.
+        val targetRegistrars = listOf(
+            "CrashlyticsRegistrar",
+            "AnalyticsConnectorRegistrar",
+            "FirebaseSessionsRegistrar",
+            "FirebasePerfRegistrar",
+        )
         classDefForEach { classDef ->
             if (classDef.interfaces.any { it == "Lcom/google/firebase/components/ComponentRegistrar;" }) {
-                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
-                mutableClass.methods.firstOrNull { it.name == "getComponents" && it.returnType == "Ljava/util/List;" }
-                    ?.addInstructions(0, emptyListSmali)
+                if (targetRegistrars.any { classDef.type.contains(it) }) {
+                    val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                    mutableClass.methods.firstOrNull { it.name == "getComponents" && it.returnType == "Ljava/util/List;" }
+                        ?.addInstructions(0, emptyListSmali)
+                }
             }
         }
 
-        // 2. Safe FirebaseCrashlytics neutralization:
-        // Returns a safe dummy object so callers don't encounter NPE if FirebaseApp is disabled.
+        // 2. Stub DeviceRegistrationManager to bypass Firebase Token / Installation ID dependencies:
+        // Intercepts fetch methods on DeviceRegistrationManager to emit Single.just("") immediately.
+        // This ensures the device keypair and Cloudflare /reg endpoint registration complete successfully.
+        mutableClassDefByOrNull("Lcom/cloudflare/app/domain/warp/DeviceRegistrationManager;")?.methods?.forEach { method ->
+            if (method.returnType == "Lio/reactivex/Single;") {
+                if (method.parameterTypes.isEmpty() || method.parameterTypes == listOf("Z")) {
+                    method.addInstructions(0, singleEmptyStringSmali)
+                }
+            }
+        }
+
+        // 3. Stub FirebaseMessaging.getToken() and FirebaseInstallations.getId() to complete immediately with empty Task
+        mutableClassDefByOrNull("Lcom/google/firebase/messaging/FirebaseMessaging;")?.methods?.forEach { method ->
+            if (method.name == "getToken" && method.returnType == "Lcom/google/android/gms/tasks/Task;") {
+                method.addInstructions(0, taskEmptyStringSmali)
+            }
+        }
+        mutableClassDefByOrNull("Lcom/google/firebase/installations/FirebaseInstallations;")?.methods?.forEach { method ->
+            if (method.name == "getId" && method.returnType == "Lcom/google/android/gms/tasks/Task;") {
+                method.addInstructions(0, taskEmptyStringSmali)
+            }
+        }
+
+        // 4. Safe FirebaseCrashlytics neutralization:
+        // Returns a safe dummy object so callers don't encounter NPE.
         FirebaseCrashlyticsGetInstanceFingerprint.matchOrNull()?.method?.addInstructions(
             0,
             """
@@ -100,7 +135,7 @@ val removeFirebasePatch = bytecodePatch(
             }
         }
 
-        // 3. Safe FirebaseAnalytics neutralization:
+        // 5. Safe FirebaseAnalytics neutralization:
         // No-op all void telemetry methods on FirebaseAnalytics (logEvent, setUserProperty, etc.)
         mutableClassDefByOrNull("Lcom/google/firebase/analytics/FirebaseAnalytics;")?.methods?.forEach { method ->
             if (method.returnType == "V" && method.name != "<init>") {
@@ -108,26 +143,10 @@ val removeFirebasePatch = bytecodePatch(
             }
         }
 
-        // 4. Short-circuit FirebaseApp.initializeApp
-        FirebaseAppInitializeAppFingerprint.matchAllOrNull()?.forEach { match ->
-            val method = match.method
-            if (method.returnType == "V") {
-                method.addInstructions(0, "return-void")
-            } else if (method.returnType.startsWith("L")) {
-                method.addInstructions(
-                    0,
-                    """
-                    const/4 v0, 0x0
-                    return-object v0
-                    """.trimIndent(),
-                )
-            }
-        }
-
-        // 5. No-op Cloudflare AnalyticsService static dispatcher if present
+        // 6. No-op Cloudflare AnalyticsService static dispatcher if present
         CloudflareAnalyticsServiceDispatchFingerprint.matchOrNull()?.method?.addInstructions(0, "return-void")
 
-        // 6. Scan and neutralize anonymous inner class dispatchers sending to GMS / Firebase
+        // 7. Scan and neutralize anonymous inner class dispatchers sending to GMS / Firebase
         classDefForEach { classDef ->
             if (!classDef.type.startsWith("Lcom/cloudflare/app/domain/analytics/AnalyticsService$")) {
                 return@classDefForEach
