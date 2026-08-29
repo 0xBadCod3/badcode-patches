@@ -1,0 +1,110 @@
+name: Build and Release Morphe Patches
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-release:
+    name: Build & Release .mpp Bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x ./gradlew
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            PROPS_VERSION=$(grep 'version' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
+            VERSION="${PROPS_VERSION:-1.0.0}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Patches (.mpp)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew build --no-daemon
+
+      - name: Generate Patches List & Metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew generatePatchesList --no-daemon || true
+
+      - name: Prepare Release Bundle JSON & Checksums
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          REPO="${{ github.repository }}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat <<EOF > patches-bundle.json
+          {
+            "created_at": "$DATE",
+            "description": "Morphe Patches Release v$VERSION",
+            "download_url": "https://github.com/$REPO/releases/download/v$VERSION/patches-$VERSION.mpp",
+            "signature_download_url": "",
+            "version": "$VERSION"
+          }
+          EOF
+
+          # Rename build output to standard naming if needed
+          mkdir -p release_assets
+          cp patches-bundle.json release_assets/
+          [ -f patches-list.json ] && cp patches-list.json release_assets/
+
+          find patches/build/libs -maxdepth 1 -type f \( -name '*.mpp' -o -name '*.jar' \) ! -name '*sources*' ! -name '*javadoc*' -exec cp {} release_assets/patches-$VERSION.mpp \;
+
+          cd release_assets
+          sha256sum * > SHA256SUMS.txt || true
+          cd ..
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: "v${{ steps.get_version.outputs.VERSION }}"
+          body: |
+            ## Morphe Patches v${{ steps.get_version.outputs.VERSION }}
+            
+            Add this source to Morphe Manager:
+            `https://github.com/${{ github.repository }}`
+            
+            Or click:
+            [Add to Morphe](https://morphe.software/add-source?github=${{ github.repository }})
+          files: |
+            release_assets/*
+          draft: false
+          prerelease: false
