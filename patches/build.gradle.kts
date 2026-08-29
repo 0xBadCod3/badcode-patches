@@ -7,6 +7,7 @@ patches {
         source = "https://github.com/rushiranpise/morphe-patches"
         author = "Professor"
         contact = "https://github.com"
+        website = "https://github.com"
         license = "GPLv3"
     }
 }
@@ -17,7 +18,7 @@ kotlin {
     }
 }
 
-val patchListGeneratorClasspath: Configuration by configurations.creating
+val patchListGeneratorClasspath: Configuration = configurations.create("patchListGeneratorClasspath")
 
 dependencies {
     compileOnly(libs.gson)
