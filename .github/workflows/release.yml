@@ -54,12 +54,14 @@ jobs:
       - name: Build Patches (.mpp)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           ./gradlew build --no-daemon
 
       - name: Generate Patches List & Metadata
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           ./gradlew generatePatchesList --no-daemon || true
 
