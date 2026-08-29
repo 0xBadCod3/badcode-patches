@@ -39,15 +39,20 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
-      - name: Determine Version
+      - name: Determine Version Dynamically
         id: get_version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
-            PROPS_VERSION=$(grep 'version' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
-            VERSION="${PROPS_VERSION:-1.1.0}"
+            VERSION=$(grep -E '^version\s*=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
           fi
+
+          if [ -z "$VERSION" ]; then
+            echo "Error: Version could not be determined from Git tag or gradle.properties" >&2
+            exit 1
+          fi
+
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
 
