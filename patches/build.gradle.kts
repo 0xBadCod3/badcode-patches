@@ -1,13 +1,13 @@
-group = "app.professor.morphe-patches"
+group = "app.badcode.morphe-patches"
 
 patches {
     about {
-        name = "Professor's Morphe Patches"
-        description = "Custom Morphe Patches by Professor."
-        source = "https://github.com/rushiranpise/morphe-patches"
-        author = "Professor"
-        contact = "https://github.com"
-        website = "https://github.com"
+        name = "BadCode's Morphe Patches"
+        description = "Custom Morphe Patches by 0xBadCod3."
+        source = "https://github.com/0xBadCod3/badcode-patches"
+        author = "0xBadCod3"
+        contact = "https://github.com/0xBadCod3"
+        website = "https://morphe.software/add-source?github=0xBadCod3/badcode-patches"
         license = "GPLv3"
     }
 }

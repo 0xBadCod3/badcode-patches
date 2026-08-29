@@ -1,4 +1,4 @@
-rootProject.name = "professor-patches"
+rootProject.name = "badcode-patches"
 
 pluginManagement {
     repositories {
