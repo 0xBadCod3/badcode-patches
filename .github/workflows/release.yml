@@ -100,4 +100,4 @@ jobs:
           REPO="${{ github.repository }}"
 
           echo "Publishing release $TAG for $REPO..."
-          gh release create "$TAG" release_assets/* --title "$TAG" --notes "BadCode Morphe Patches $TAG" --clobber --repo "$REPO" || gh release upload "$TAG" release_assets/* --clobber --repo "$REPO"
+          gh release create "$TAG" release_assets/* --title "$TAG" --notes "BadCode Morphe Patches $TAG" --repo "$REPO" || gh release upload "$TAG" release_assets/* --clobber --repo "$REPO"
