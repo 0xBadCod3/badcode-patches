@@ -91,21 +91,25 @@ jobs:
           git add patches-bundle.json patches-list.json README.md || true
           git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update release metadata [skip ci]" && git push origin main) || true
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
-        with:
-          tag_name: ${{ steps.get_version.outputs.TAG }}
-          name: "v${{ steps.get_version.outputs.VERSION }}"
-          body: |
-            ## BadCode's Morphe Patches v${{ steps.get_version.outputs.VERSION }}
-            
-            Add this source to Morphe Manager:
-            `https://github.com/${{ github.repository }}`
-            
-            Or click:
-            [Add to Morphe](https://morphe.software/add-source?github=${{ github.repository }})
-          files: |
-            release_assets/*
-          draft: false
-          prerelease: false
+      - name: Publish GitHub Release via CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TAG="${{ steps.get_version.outputs.TAG }}"
+          REPO="${{ github.repository }}"
+
+          BODY="## BadCode's Morphe Patches $TAG
+
+          Add this source to Morphe Manager:
+          \`https://github.com/$REPO\`
+
+          Or click:
+          [Add to Morphe](https://morphe.software/add-source?github=$REPO)"
+
+          # Use official GitHub CLI to create or update the release and upload assets
+          gh release create "$TAG" release_assets/* \
+            --title "$TAG" \
+            --notes "$BODY" \
+            --clobber \
+            --repo "$REPO" || gh release upload "$TAG" release_assets/* --clobber --repo "$REPO"
