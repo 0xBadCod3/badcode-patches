@@ -1,0 +1,59 @@
+{
+  "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
+  "version": "1.0.0",
+  "patches": [
+    {
+      "name": "Remove Firebase & Telemetry",
+      "description": "Completely disables Firebase initialization, background receivers, registrars, and analytics telemetry.",
+      "default": true,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.cloudflare.cloudflareoneagent",
+          "name": "Cloudflare One Agent",
+          "description": null,
+          "apkFileType": "APK",
+          "appIconColor": "#F48120",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "2.5.5",
+              "versionCodes": {
+                "ARM64_V8A": 5640,
+                "ARMEABI_V7A": 5640,
+                "X86_64": 5640,
+                "X86": 5640
+              },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        },
+        {
+          "packageName": "com.cloudflare.onedotonedotonedotone",
+          "name": "1.1.1.1",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#F48120",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "6.38.9",
+              "versionCodes": {
+                "ARM64_V8A": 5641,
+                "ARMEABI_V7A": 5641,
+                "X86_64": 5641,
+                "X86": 5641
+              },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    }
+  ]
+}

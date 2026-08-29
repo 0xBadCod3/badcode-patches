@@ -9,19 +9,21 @@ object Constants {
     val CLOUDFLARE_ONE_AGENT_COMPATIBILITY = Compatibility(
         name = "Cloudflare One Agent",
         packageName = "com.cloudflare.cloudflareoneagent",
-        appIconColor = 0xF38020,
+        appIconColor = 0xF48120,
         apkFileType = ApkFileType.APK,
         targets = listOf(
+            AppTarget(version = "2.5.5", versionCode = 5640),
             AppTarget(version = "any")
         )
     )
 
     val CLOUDFLARE_WARP_COMPATIBILITY = Compatibility(
-        name = "Cloudflare WARP",
+        name = "1.1.1.1",
         packageName = "com.cloudflare.onedotonedotonedotone",
-        appIconColor = 0xF38020,
-        apkFileType = ApkFileType.APK,
+        appIconColor = 0xF48120,
+        apkFileType = ApkFileType.APKM,
         targets = listOf(
+            AppTarget(version = "6.38.9", versionCode = 5641),
             AppTarget(version = "any")
         )
     )
