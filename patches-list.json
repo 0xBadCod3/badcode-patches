@@ -6,7 +6,9 @@
       "name": "Remove Firebase & Telemetry",
       "description": "Completely disables Firebase initialization, background receivers, registrars, and analytics telemetry.",
       "default": true,
-      "dependencies": [],
+      "dependencies": [
+        "ResourcePatch"
+      ],
       "compatiblePackages": [
         {
           "packageName": "com.cloudflare.cloudflareoneagent",
@@ -24,6 +26,13 @@
                 "X86_64": 5640,
                 "X86": 5640
               },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            },
+            {
+              "version": "any",
+              "versionCodes": null,
               "isExperimental": false,
               "minSdk": null,
               "description": null
@@ -46,6 +55,13 @@
                 "X86_64": 5641,
                 "X86": 5641
               },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            },
+            {
+              "version": "any",
+              "versionCodes": null,
               "isExperimental": false,
               "minSdk": null,
               "description": null
