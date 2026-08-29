@@ -51,19 +51,12 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build Patches (.mpp)
+      - name: Build Android DEX Patches (.mpp)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: |
-          ./gradlew build --no-daemon
-
-      - name: Generate Patches List & Metadata
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-        run: |
-          ./gradlew generatePatchesList --no-daemon || true
+          ./gradlew :patches:buildAndroid :patches:generatePatchesList --no-daemon
 
       - name: Prepare Release Bundle JSON & Checksums
         run: |
@@ -85,7 +78,7 @@ jobs:
           cp patches-bundle.json release_assets/
           [ -f patches-list.json ] && cp patches-list.json release_assets/
 
-          find patches/build/libs -maxdepth 1 -type f \( -name '*.mpp' -o -name '*.jar' \) ! -name '*sources*' ! -name '*javadoc*' -exec cp {} release_assets/patches-$VERSION.mpp \;
+          find patches/build/libs -maxdepth 1 -type f -name '*.mpp' ! -name '*sources*' ! -name '*javadoc*' -exec cp {} release_assets/patches-$VERSION.mpp \;
 
           cd release_assets
           sha256sum * > SHA256SUMS.txt || true
