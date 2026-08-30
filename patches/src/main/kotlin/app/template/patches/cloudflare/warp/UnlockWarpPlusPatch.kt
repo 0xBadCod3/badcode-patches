@@ -19,15 +19,21 @@ val unlockWarpPlusPatch = bytecodePatch(
     compatibleWith(WARP_COMPATIBILITY)
 
     execute {
-        mutableClassDefByOrNull("Lcom/cloudflare/app/data/warpapi/AccountData;")?.methods?.forEach { method ->
-            if (method.name == "<init>") {
-                val warpStateIndex = method.parameterTypes.map { it.toString() }.indexOf("Lcom/cloudflare/app/data/warpapi/WarpPlusState;")
-                if (warpStateIndex >= 0) {
-                    val reg = warpStateIndex + 1
-                    method.addInstructions(
-                        0,
-                        "sget-object p$reg, Lcom/cloudflare/app/data/warpapi/WarpPlusState;->UNLIMITED:Lcom/cloudflare/app/data/warpapi/WarpPlusState;",
-                    )
+        classDefForEach { classDef ->
+            if (classDef.type.contains("AccountData") || classDef.type.contains("warpapi")) {
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                mutableClass.methods.forEach { method ->
+                    if (method.name == "<init>") {
+                        val warpStateIndex = method.parameterTypes.indexOfFirst { it.contains("WarpPlusState;") }
+                        if (warpStateIndex >= 0) {
+                            val warpStateType = method.parameterTypes[warpStateIndex].toString()
+                            val reg = warpStateIndex + 1
+                            method.addInstructions(
+                                0,
+                                "sget-object p$reg, $warpStateType->UNLIMITED:$warpStateType",
+                            )
+                        }
+                    }
                 }
             }
         }

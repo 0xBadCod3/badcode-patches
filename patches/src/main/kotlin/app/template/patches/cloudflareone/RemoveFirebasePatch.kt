@@ -94,12 +94,17 @@ val removeFirebasePatch = bytecodePatch(
         }
 
         // 2. Stub DeviceRegistrationManager to bypass Firebase Token / Installation ID dependencies:
-        // Intercepts fetch methods on DeviceRegistrationManager to emit Single.just("") immediately.
+        // Dynamically scans for DeviceRegistrationManager across packages to emit Single.just("") immediately.
         // This ensures the device keypair and Cloudflare /reg endpoint registration complete successfully.
-        mutableClassDefByOrNull("Lcom/cloudflare/app/domain/warp/DeviceRegistrationManager;")?.methods?.forEach { method ->
-            if (method.returnType == "Lio/reactivex/Single;") {
-                if (method.parameterTypes.isEmpty() || method.parameterTypes == listOf("Z")) {
-                    method.addInstructions(0, singleEmptyStringSmali)
+        classDefForEach { classDef ->
+            if (classDef.type.contains("DeviceRegistrationManager") || classDef.type.contains("domain/warp")) {
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                mutableClass.methods.forEach { method ->
+                    if (method.returnType == "Lio/reactivex/Single;") {
+                        if (method.parameterTypes.isEmpty() || method.parameterTypes == listOf("Z")) {
+                            method.addInstructions(0, singleEmptyStringSmali)
+                        }
+                    }
                 }
             }
         }
