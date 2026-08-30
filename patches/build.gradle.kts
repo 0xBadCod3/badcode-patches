@@ -4,10 +4,10 @@ patches {
     about {
         name = "BadCode's Morphe Patches"
         description = "Custom Morphe Patches by 0xBadCod3."
-        source = "https://github.com/0xBadCod3/badcode-patches"
+        source = "https://github.com/0xBadCod3/morphe-patches"
         author = "0xBadCod3"
         contact = "https://github.com/0xBadCod3"
-        website = "https://morphe.software/add-source?github=0xBadCod3/badcode-patches"
+        website = "https://morphe.software/add-source?github=0xBadCod3/morphe-patches"
         license = "GPLv3"
     }
 }
