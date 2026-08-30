@@ -30,4 +30,15 @@ object Constants {
     )
 
     val WARP_COMPATIBILITY = CLOUDFLARE_WARP_COMPATIBILITY
+
+    val STICKER_MAKER_COMPATIBILITY = Compatibility(
+        name = "Sticker Maker for WhatsApp",
+        packageName = "customstickermaker.whatsappstickers.personalstickersforwhatsapp",
+        appIconColor = 0x25D366,
+        apkFileType = ApkFileType.APK,
+        targets = listOf(
+            AppTarget(version = "1.292.79", versionCode = 79000),
+            AppTarget(version = "any")
+        )
+    )
 }
