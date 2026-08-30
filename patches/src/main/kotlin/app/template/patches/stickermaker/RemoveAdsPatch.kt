@@ -86,20 +86,83 @@ val removeAdsPatch = bytecodePatch(
     dependsOn(removeAdsManifestPatch)
 
     execute {
-        // Dynamic structural scan across all classes in the app for ad mediation, loaders, and PairIP checks
+        // Dynamic structural scan across all classes in the app for anti-tamper signature checks, ad mediation, loaders, and PairIP
         classDefForEach { classDef ->
-            // 1. Bypass PairIP installer and license check shutdowns on launch
-            if (classDef.type.contains("pairip/licensecheck/LicenseClient") ||
-                classDef.type.contains("pairip/application/Application")
-            ) {
+            // 1. Neutralize all anti-tamper signature checks across all app activities & helper classes
+            val isAntiTamperClass = classDef.methods.any { m ->
+                m.implementation?.instructions?.any { instr ->
+                    val s = instr.toString()
+                    s.contains("System.exit returned normally") ||
+                        s.contains("signatures:[Landroid/content/pm/Signature;") ||
+                        s.contains("signingInfo:Landroid/content/pm/SigningInfo;") ||
+                        s.contains("toCharsString") ||
+                        s.contains("getApkContentsSigners")
+                } == true
+            }
+            if (isAntiTamperClass) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null || method.name == "<clinit>") return@forEach
+                    if (method.returnType == "V") {
+                        method.addInstructions(0, "return-void")
+                    } else if (method.returnType == "Z") {
+                        method.addInstructions(0, "const/4 v0, 0x1\nreturn v0")
+                    } else if (method.returnType == "Ljava/lang/String;") {
+                        method.addInstructions(0, "const-string v0, \"\"\nreturn-object v0")
+                    }
+                }
+            }
+
+            // 2. Neutralize central process termination helpers (LC9/d;->b, killProcess, System.exit, Runtime.halt/exit)
+            val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+            mutableClass.methods.forEach { method ->
+                if (method.implementation == null || method.name == "<init>" || method.name == "<clinit>") return@forEach
+                val hasKillCall = method.implementation?.instructions?.any { instr ->
+                    val s = instr.toString()
+                    s.contains("Landroid/os/Process;->killProcess(I)V") ||
+                        s.contains("Ljava/lang/System;->exit(I)V") ||
+                        s.contains("Ljava/lang/Runtime;->exit(I)V") ||
+                        s.contains("Ljava/lang/Runtime;->halt(I)V") ||
+                        s.contains("Landroid/os/Process;->sendSignal(II)V")
+                } == true
+                if (hasKillCall) {
+                    if (method.returnType == "Ljava/lang/RuntimeException;") {
+                        method.addInstructions(
+                            0,
+                            """
+                                new-instance v0, Ljava/lang/RuntimeException;
+                                invoke-direct {v0, p1}, Ljava/lang/RuntimeException;-><init>(Ljava/lang/String;)V
+                                return-object v0
+                            """.trimIndent()
+                        )
+                    } else if (method.returnType == "Ljava/lang/Object;" || method.returnType == "Llb/l;") {
+                        method.addInstructions(
+                            0,
+                            """
+                                sget-object v0, Llb/l;->a:Llb/l;
+                                return-object v0
+                            """.trimIndent()
+                        )
+                    } else if (method.returnType == "V") {
+                        method.addInstructions(0, "return-void")
+                    } else if (method.returnType == "Z") {
+                        method.addInstructions(0, "const/4 v0, 0x1\nreturn v0")
+                    }
+                }
+            }
+
+            // 3. Bypass PairIP installer and license check shutdowns on launch
+            if (classDef.type.contains("pairip/licensecheck/LicenseClient") ||
+                classDef.type.contains("pairip/application/Application") ||
+                classDef.type.contains("pairip/licensecheck/LicenseActivity")
+            ) {
+                mutableClass.methods.forEach { method ->
                     if (method.implementation == null) return@forEach
-                    if (method.name == "checkLicense" || method.name == "initializeLicenseCheck") {
+                    if (method.name == "checkLicense" || method.name == "initializeLicenseCheck" || method.name == "onCreate") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
                         }
-                    } else if (method.name == "performLocalInstallerCheck") {
+                    } else if (method.name == "performLocalInstallerCheck" || method.name == "isLicensed") {
                         if (method.returnType == "Z") {
                             method.addInstructions(0, "const/4 v0, 0x1\nreturn v0")
                         }
@@ -115,9 +178,8 @@ val removeAdsPatch = bytecodePatch(
                 }
             }
 
-            // 2. Intercept all ZJSoft ad manager methods
+            // 4. Intercept all ZJSoft ad manager methods
             if (classDef.type.contains("zjsoft/admob")) {
-                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
                     if (method.implementation == null) return@forEach
                     val callbackParamIndex = method.parameterTypes.indexOfFirst { it.contains("admob/e;") }
@@ -137,9 +199,8 @@ val removeAdsPatch = bytecodePatch(
                 }
             }
 
-            // 3. Intercept AdView / Interstitial / Rewarded ad loaders
+            // 5. Intercept AdView / Interstitial / Rewarded ad loaders
             if (classDef.type.startsWith("Lcom/google/android/gms/ads/")) {
-                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
                     if (method.implementation == null) return@forEach
                     if (method.name == "loadAd" || method.name == "load" || method.name == "show") {
@@ -150,13 +211,12 @@ val removeAdsPatch = bytecodePatch(
                 }
             }
 
-            // 4. Intercept InMobi, Pangle, FAN, MyTarget initialization
+            // 6. Intercept InMobi, Pangle, FAN, MyTarget initialization
             if (classDef.type.startsWith("Lcom/inmobi/") ||
                 classDef.type.startsWith("Lcom/bytedance/sdk/openadsdk/") ||
                 classDef.type.startsWith("Lcom/facebook/ads/") ||
                 classDef.type.startsWith("Lcom/my/target/")
             ) {
-                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
                     if (method.implementation == null) return@forEach
                     if (method.name == "init" || method.name == "initialize" || method.name == "initSdk") {

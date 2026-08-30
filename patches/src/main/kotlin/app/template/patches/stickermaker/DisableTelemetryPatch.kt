@@ -118,6 +118,21 @@ val disableTelemetryPatch = bytecodePatch(
                     }
                 }
             }
+
+            // Neutralize custom internal telemetry loggers that forward events to Firebase
+            val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+            mutableClass.methods.forEach { method ->
+                if (method.implementation == null || method.name == "<init>" || method.name == "<clinit>") return@forEach
+                if (method.returnType == "V" &&
+                    method.implementation?.instructions?.any { instr ->
+                        val s = instr.toString()
+                        s.contains("Lcom/google/firebase/analytics/FirebaseAnalytics;") ||
+                            s.contains("Lcom/google/android/gms/measurement/")
+                    } == true
+                ) {
+                    method.addInstructions(0, "return-void")
+                }
+            }
         }
 
         // 2. Specific singleton entrypoint fingerprints
