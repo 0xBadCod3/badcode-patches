@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "patches": [
     {
       "name": "Disable Analytics / Telemetry",
@@ -53,6 +53,46 @@
       "options": []
     },
     {
+      "name": "Disable Analytics / Telemetry",
+      "description": "Disables all Firebase analytics, Crashlytics, and measurement telemetry dispatchers.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "customstickermaker.whatsappstickers.personalstickersforwhatsapp",
+          "name": "Sticker Maker for WhatsApp",
+          "description": null,
+          "apkFileType": "APK",
+          "appIconColor": "#25D366",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "1.292.79",
+              "versionCodes": {
+                "ARM64_V8A": 79000,
+                "ARMEABI_V7A": 79000,
+                "X86_64": 79000,
+                "X86": 79000
+              },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            },
+            {
+              "version": "any",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Disable SSL Pinning",
       "description": "Bypasses OkHttp certificate pinning on Cloudflare API calls to allow TLS traffic inspection.",
       "default": false,
@@ -85,6 +125,46 @@
                 "ARMEABI_V7A": 5431,
                 "X86_64": 5431,
                 "X86": 5431
+              },
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            },
+            {
+              "version": "any",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Remove Advertisements",
+      "description": "Disables all in-app advertisements across AdMob, Pangle, InMobi, MyTarget, and Facebook Audience Network.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "customstickermaker.whatsappstickers.personalstickersforwhatsapp",
+          "name": "Sticker Maker for WhatsApp",
+          "description": null,
+          "apkFileType": "APK",
+          "appIconColor": "#25D366",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "1.292.79",
+              "versionCodes": {
+                "ARM64_V8A": 79000,
+                "ARMEABI_V7A": 79000,
+                "X86_64": 79000,
+                "X86": 79000
               },
               "isExperimental": false,
               "minSdk": null,
