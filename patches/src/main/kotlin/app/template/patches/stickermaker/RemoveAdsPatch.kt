@@ -8,7 +8,7 @@ import org.w3c.dom.Element
 
 /**
  * Manifest patch: Disables ad-related activities, services, content providers,
- * and ad permissions in AndroidManifest.xml for Sticker Maker.
+ * ad permissions, and PairIP license check activities in AndroidManifest.xml.
  */
 val removeAdsManifestPatch = resourcePatch(
     default = true
@@ -17,6 +17,20 @@ val removeAdsManifestPatch = resourcePatch(
 
     execute {
         document("AndroidManifest.xml").use { doc ->
+            // 1. Point <application> directly to the genuine StickerApplication class if wrapped by PairIP
+            val applicationNodes = doc.getElementsByTagName("application")
+            if (applicationNodes.length > 0) {
+                val appElem = applicationNodes.item(0) as? Element
+                val currentName = appElem?.getAttribute("android:name")
+                if (currentName?.contains("pairip") == true) {
+                    appElem.setAttribute(
+                        "android:name",
+                        "customstickermaker.whatsappstickers.personalstickersforwhatsapp.base.StickerApplication"
+                    )
+                }
+            }
+
+            // 2. Disable ad-related and pairip-related activities, services, receivers, and providers
             val tags = listOf("activity", "provider", "service", "receiver")
             val adKeywords = listOf(
                 "com.google.android.gms.ads",
@@ -24,6 +38,7 @@ val removeAdsManifestPatch = resourcePatch(
                 "com.my.target",
                 "com.bytedance.sdk.openadsdk",
                 "com.facebook.ads",
+                "com.pairip.licensecheck",
             )
 
             tags.forEach { tagName ->
@@ -37,7 +52,7 @@ val removeAdsManifestPatch = resourcePatch(
                 }
             }
 
-            // Remove ad permissions
+            // 3. Remove ad permissions
             val permissionNodes = doc.getElementsByTagName("uses-permission")
             val adPermissionKeywords = listOf(
                 "com.google.android.gms.permission.AD_ID",
@@ -58,7 +73,8 @@ val removeAdsManifestPatch = resourcePatch(
 
 /**
  * Bytecode patch: Disables all in-app ads by safely no-oping
- * ad managers, preventing background ad requests, banners, and interstitials.
+ * ad managers, preventing background ad requests, banners, and interstitials,
+ * and ensures modified app launches smoothly by bypassing PairIP startup exits.
  */
 @Suppress("unused")
 val removeAdsPatch = bytecodePatch(
@@ -70,9 +86,36 @@ val removeAdsPatch = bytecodePatch(
     dependsOn(removeAdsManifestPatch)
 
     execute {
-        // Dynamic structural scan across all classes in the app for ad mediation and ad loaders
+        // Dynamic structural scan across all classes in the app for ad mediation, loaders, and PairIP checks
         classDefForEach { classDef ->
-            // 1. Intercept all ZJSoft ad manager methods
+            // 1. Bypass PairIP installer and license check shutdowns on launch
+            if (classDef.type.contains("pairip/licensecheck/LicenseClient") ||
+                classDef.type.contains("pairip/application/Application")
+            ) {
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
+                    if (method.name == "checkLicense" || method.name == "initializeLicenseCheck") {
+                        if (method.returnType == "V") {
+                            method.addInstructions(0, "return-void")
+                        }
+                    } else if (method.name == "performLocalInstallerCheck") {
+                        if (method.returnType == "Z") {
+                            method.addInstructions(0, "const/4 v0, 0x1\nreturn v0")
+                        }
+                    } else if (method.name == "attachBaseContext") {
+                        method.addInstructions(
+                            0,
+                            """
+                                invoke-super {p0, p1}, Lcustomstickermaker/whatsappstickers/personalstickersforwhatsapp/base/StickerApplication;->attachBaseContext(Landroid/content/Context;)V
+                                return-void
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            // 2. Intercept all ZJSoft ad manager methods
             if (classDef.type.contains("zjsoft/admob")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
@@ -94,7 +137,7 @@ val removeAdsPatch = bytecodePatch(
                 }
             }
 
-            // 2. Intercept AdView / Interstitial / Rewarded ad loaders
+            // 3. Intercept AdView / Interstitial / Rewarded ad loaders
             if (classDef.type.startsWith("Lcom/google/android/gms/ads/")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
@@ -107,7 +150,7 @@ val removeAdsPatch = bytecodePatch(
                 }
             }
 
-            // 3. Intercept InMobi, Pangle, FAN, MyTarget initialization
+            // 4. Intercept InMobi, Pangle, FAN, MyTarget initialization
             if (classDef.type.startsWith("Lcom/inmobi/") ||
                 classDef.type.startsWith("Lcom/bytedance/sdk/openadsdk/") ||
                 classDef.type.startsWith("Lcom/facebook/ads/") ||
