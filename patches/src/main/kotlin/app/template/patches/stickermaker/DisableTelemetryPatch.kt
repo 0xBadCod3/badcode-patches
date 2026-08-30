@@ -1,7 +1,7 @@
 package app.template.patches.stickermaker
 
+import app.morphe.patcher.Fingerprint
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
-import app.morphe.patcher.fingerprint.methodFingerprint
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.template.patches.shared.Constants.STICKER_MAKER_COMPATIBILITY
@@ -41,26 +41,26 @@ val disableTelemetryManifestPatch = resourcePatch(
     }
 }
 
-val stickerFirebaseAnalyticsGetInstanceFingerprint = methodFingerprint {
-    custom = { method, _ ->
-        method.definingClass.startsWith("Lcom/google/firebase/analytics/") &&
-            method.name == "getInstance"
-    }
-}
+val stickerFirebaseAnalyticsGetInstanceFingerprint = Fingerprint(
+    definingClass = "Lcom/google/firebase/analytics/FirebaseAnalytics;",
+    name = "getInstance",
+    returnType = "Lcom/google/firebase/analytics/FirebaseAnalytics;",
+    parameters = listOf("Landroid/content/Context;"),
+)
 
-val stickerFirebaseAppInitializeAppFingerprint = methodFingerprint {
-    custom = { method, _ ->
-        method.definingClass == "Lcom/google/firebase/FirebaseApp;" &&
-            method.name == "initializeApp"
-    }
-}
+val stickerFirebaseAppInitializeAppFingerprint = Fingerprint(
+    definingClass = "Lcom/google/firebase/FirebaseApp;",
+    name = "initializeApp",
+    returnType = "Lcom/google/firebase/FirebaseApp;",
+    parameters = listOf("Landroid/content/Context;"),
+)
 
-val stickerFirebaseCrashlyticsGetInstanceFingerprint = methodFingerprint {
-    custom = { method, _ ->
-        method.definingClass.startsWith("Lcom/google/firebase/crashlytics/") &&
-            method.name == "getInstance"
-    }
-}
+val stickerFirebaseCrashlyticsGetInstanceFingerprint = Fingerprint(
+    definingClass = "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
+    name = "getInstance",
+    returnType = "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
+    parameters = emptyList(),
+)
 
 /**
  * Bytecode patch for Sticker Maker: Completely neutralizes Firebase analytics,
@@ -83,10 +83,11 @@ val disableTelemetryPatch = bytecodePatch(
         """.trimIndent()
 
         // 1. Dynamic structural scan across all classes for Firebase / Measurement dispatchers
-        classes.forEach { classDef ->
+        classDefForEach { classDef ->
             // Stub ComponentRegistrar implementations
-            if (classDef.interfaces.contains("Lcom/google/firebase/components/ComponentRegistrar;")) {
-                val getComponentsMethod = classDef.methods.firstOrNull {
+            if (classDef.interfaces.any { it == "Lcom/google/firebase/components/ComponentRegistrar;" }) {
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                val getComponentsMethod = mutableClass.methods.firstOrNull {
                     it.name == "getComponents" && it.returnType == "Ljava/util/List;"
                 }
                 getComponentsMethod?.addInstructions(0, emptyListSmali)
@@ -94,7 +95,8 @@ val disableTelemetryPatch = bytecodePatch(
 
             // Stub FirebaseAnalytics event tracking methods
             if (classDef.type.startsWith("Lcom/google/firebase/analytics/")) {
-                classDef.methods.forEach { method ->
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                mutableClass.methods.forEach { method ->
                     if (method.name == "logEvent" || method.name == "a") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
@@ -105,7 +107,8 @@ val disableTelemetryPatch = bytecodePatch(
 
             // Stub Google AppMeasurement services / dispatchers
             if (classDef.type.startsWith("Lcom/google/android/gms/measurement/")) {
-                classDef.methods.forEach { method ->
+                val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
+                mutableClass.methods.forEach { method ->
                     if (method.name == "logEvent" || method.name == "logEventInternal") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
@@ -116,34 +119,28 @@ val disableTelemetryPatch = bytecodePatch(
         }
 
         // 2. Specific singleton entrypoint fingerprints
-        stickerFirebaseAnalyticsGetInstanceFingerprint.result?.let { result ->
-            result.mutableMethod.addInstructions(
-                0,
-                """
-                    const/4 v0, 0x0
-                    return-object v0
-                """.trimIndent()
-            )
-        }
+        stickerFirebaseAnalyticsGetInstanceFingerprint.matchOrNull()?.method?.addInstructions(
+            0,
+            """
+                const/4 v0, 0x0
+                return-object v0
+            """.trimIndent()
+        )
 
-        stickerFirebaseAppInitializeAppFingerprint.result?.let { result ->
-            result.mutableMethod.addInstructions(
-                0,
-                """
-                    const/4 v0, 0x0
-                    return-object v0
-                """.trimIndent()
-            )
-        }
+        stickerFirebaseAppInitializeAppFingerprint.matchOrNull()?.method?.addInstructions(
+            0,
+            """
+                const/4 v0, 0x0
+                return-object v0
+            """.trimIndent()
+        )
 
-        stickerFirebaseCrashlyticsGetInstanceFingerprint.result?.let { result ->
-            result.mutableMethod.addInstructions(
-                0,
-                """
-                    const/4 v0, 0x0
-                    return-object v0
-                """.trimIndent()
-            )
-        }
+        stickerFirebaseCrashlyticsGetInstanceFingerprint.matchOrNull()?.method?.addInstructions(
+            0,
+            """
+                const/4 v0, 0x0
+                return-object v0
+            """.trimIndent()
+        )
     }
 }
