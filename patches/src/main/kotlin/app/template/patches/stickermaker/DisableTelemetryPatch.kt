@@ -88,7 +88,7 @@ val disableTelemetryPatch = bytecodePatch(
             if (classDef.interfaces.any { it == "Lcom/google/firebase/components/ComponentRegistrar;" }) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 val getComponentsMethod = mutableClass.methods.firstOrNull {
-                    it.name == "getComponents" && it.returnType == "Ljava/util/List;"
+                    it.name == "getComponents" && it.returnType == "Ljava/util/List;" && it.implementation != null
                 }
                 getComponentsMethod?.addInstructions(0, emptyListSmali)
             }
@@ -97,6 +97,7 @@ val disableTelemetryPatch = bytecodePatch(
             if (classDef.type.startsWith("Lcom/google/firebase/analytics/")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
                     if (method.name == "logEvent" || method.name == "a") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
@@ -109,6 +110,7 @@ val disableTelemetryPatch = bytecodePatch(
             if (classDef.type.startsWith("Lcom/google/android/gms/measurement/")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
                     if (method.name == "logEvent" || method.name == "logEventInternal") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
@@ -119,28 +121,40 @@ val disableTelemetryPatch = bytecodePatch(
         }
 
         // 2. Specific singleton entrypoint fingerprints
-        stickerFirebaseAnalyticsGetInstanceFingerprint.matchOrNull()?.method?.addInstructions(
-            0,
-            """
-                const/4 v0, 0x0
-                return-object v0
-            """.trimIndent()
-        )
+        stickerFirebaseAnalyticsGetInstanceFingerprint.matchOrNull()?.method?.let { method ->
+            if (method.implementation != null) {
+                method.addInstructions(
+                    0,
+                    """
+                        const/4 v0, 0x0
+                        return-object v0
+                    """.trimIndent()
+                )
+            }
+        }
 
-        stickerFirebaseAppInitializeAppFingerprint.matchOrNull()?.method?.addInstructions(
-            0,
-            """
-                const/4 v0, 0x0
-                return-object v0
-            """.trimIndent()
-        )
+        stickerFirebaseAppInitializeAppFingerprint.matchOrNull()?.method?.let { method ->
+            if (method.implementation != null) {
+                method.addInstructions(
+                    0,
+                    """
+                        const/4 v0, 0x0
+                        return-object v0
+                    """.trimIndent()
+                )
+            }
+        }
 
-        stickerFirebaseCrashlyticsGetInstanceFingerprint.matchOrNull()?.method?.addInstructions(
-            0,
-            """
-                const/4 v0, 0x0
-                return-object v0
-            """.trimIndent()
-        )
+        stickerFirebaseCrashlyticsGetInstanceFingerprint.matchOrNull()?.method?.let { method ->
+            if (method.implementation != null) {
+                method.addInstructions(
+                    0,
+                    """
+                        const/4 v0, 0x0
+                        return-object v0
+                    """.trimIndent()
+                )
+            }
+        }
     }
 }

@@ -76,6 +76,7 @@ val removeAdsPatch = bytecodePatch(
             if (classDef.type.contains("zjsoft/admob")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
                     val callbackParamIndex = method.parameterTypes.indexOfFirst { it.contains("admob/e;") }
                     if (callbackParamIndex >= 0) {
                         val pReg = "p${callbackParamIndex + (if ((method.accessFlags.toInt() and 8) != 0) 0 else 1)}"
@@ -97,6 +98,7 @@ val removeAdsPatch = bytecodePatch(
             if (classDef.type.startsWith("Lcom/google/android/gms/ads/")) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
                     if (method.name == "loadAd" || method.name == "load" || method.name == "show") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
@@ -113,6 +115,7 @@ val removeAdsPatch = bytecodePatch(
             ) {
                 val mutableClass = mutableClassDefByOrNull(classDef.type) ?: return@classDefForEach
                 mutableClass.methods.forEach { method ->
+                    if (method.implementation == null) return@forEach
                     if (method.name == "init" || method.name == "initialize" || method.name == "initSdk") {
                         if (method.returnType == "V") {
                             method.addInstructions(0, "return-void")
